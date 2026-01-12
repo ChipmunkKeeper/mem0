@@ -12,9 +12,20 @@ from openai import OpenAI
 os.environ["DEEPSEEK_API_KEY"] = "sk-eee609e2be48437ca8f7cfe4e61c59b0" # qwen免费deepseek v3.2
 BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 MODEL_NAME = "deepseek-v3.2"
-
+    
 # embedding用本地
 # os.environ["OPENAI_API_KEY"] = "sk-xxx" 
+
+user_id = "customer_bot_user_1"
+
+# 根目录
+ROOT_MEMORY_PATH = "/home/jwuev/code/mem0/local_memory"
+# 向量数据库文件夹，相对路径即可
+VECTOR_DB_PATH = "vector_db"
+# 历史记录文件 (SQLite 需要一个文件路径)
+HISTORY_DB_PATH = os.path.join(ROOT_MEMORY_PATH, "history.db")
+# 不同数据库的子路径，用于隔离记忆
+MEMORY_COLLECTION_PATH = os.path.join(ROOT_MEMORY_PATH, user_id)
 
 class SupportChatbot:
     def __init__(self):
@@ -43,12 +54,12 @@ class SupportChatbot:
             "vector_store": {
                 # "provider": "qdrant",  # 默认也是 qdrant
                 "config": {
-                    "collection_name": "/home/jwuev/code/mem0/cookbooks/support_chat_memory",
-                    "path": "local_vector_db", # 本地持久化路径
+                    "collection_name": MEMORY_COLLECTION_PATH, # 本地记忆的子分类，不同记忆库
+                    "path": VECTOR_DB_PATH, # 本地持久化路径
                     "embedding_model_dims": 1024,  # BGE-M3 的维度是 1024
                 },
             },
-            "history_db_path": "/home/jwuev/code/mem0/cookbooks/local_history.db"
+            "history_db_path": HISTORY_DB_PATH # 每次对记忆操作的历史记录，当前路径为不同记忆库之间共享
         }
 
         # 初始化 Mem0
@@ -131,7 +142,6 @@ class SupportChatbot:
 
 if __name__ == "__main__":
     chatbot = SupportChatbot()
-    user_id = "customer_bot_user_1"
     print("Welcome to Customer Support! Type 'exit' to end the conversation.")
 
     while True:
