@@ -22,7 +22,7 @@ BASE_URL = "http://localhost:8000/v1"
 os.environ["LOCAL_API_KEY"] = "EMPTY"
 MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
 
-user_id = "customer_bot_user_1"
+user_id = "wechat_wy"
 
 # 根目录
 ROOT_MEMORY_PATH = "/home/jwuev/code/mem0/local_memory"
@@ -105,7 +105,7 @@ class SupportChatbot:
         return self.memory.search(
             query=query,
             user_id=user_id,
-            limit=5,
+            limit=20,
         )
 
     def handle_customer_query(self, user_id: str, query: str) -> str:
@@ -116,9 +116,9 @@ class SupportChatbot:
         context = "Previous relevant interactions:\n"
         # 注意：根据 mem0 版本，返回结构可能略有不同，通常是 result['memory']
         for item in relevant_history.get("results", []): # 安全获取 results
-             context += f"Memory: {item.get('memory', '')}\n"
+            context += f"Memory: {item.get('memory', '')}\n"
         context += "---\n"
-
+        print("Relevant history context:\n", context)
         prompt = f"""
         {self.system_context}
 
