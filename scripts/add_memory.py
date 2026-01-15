@@ -10,12 +10,12 @@ import re
 用vllm形成本地服务器，再通过openai api接口调用
 
 开始服务：
-CUDA_VISIBLE_DEVICES=1 python -m vllm.entrypoints.openai.api_server \
+CUDA_VISIBLE_DEVICES=8 python -m vllm.entrypoints.openai.api_server \
     --model Qwen/Qwen2.5-7B-Instruct \
     --port 8000 \
     --gpu-memory-utilization 0.9
 
-结束进程： kill -9 1946433
+结束进程： kill -9 <PID>
 
 """
 
@@ -86,6 +86,8 @@ class SupportChatbot:
         - Show empathy for customer issues
         - Reference past interactions when relevant
         - Maintain consistent information across conversations
+        - If you're unsure about something, ask for clarification
+        - Keep track of open issues and follow-ups
         """
 
     def store_customer_interaction(self, user_id: str, message: str, response: str, metadata: Dict = None):
@@ -130,7 +132,7 @@ class SupportChatbot:
 
         response = self.client.chat.completions.create(
             model=MODEL_NAME,
-            extra_body={"enable_thinking": False}, # deepseek-v3.2可以深度思考
+            extra_body={"enable_thinking": False},
             messages=[{"role": "user", "content": prompt}],
             max_tokens=2000,
             temperature=0.1,
@@ -145,13 +147,13 @@ class SupportChatbot:
 
         return response_text
     
-    def import_chat_history(self, file_path: str, user_id: str):
+
+    def import_chat_history(self, file_path: str, user_id: str, batch_size=20):
         """
-        读取微信格式的txt文件并导入到mem0记忆中
+        读取微信格式的txt文件，按批次导入到mem0记忆中
         """
         print(f"Start importing history from {file_path}...")
         
-        count = 0
         with open(file_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
@@ -161,14 +163,15 @@ class SupportChatbot:
                 start_index = i + 1
                 break
         
-        # 预编译正则，处理变长空格
-        # 格式示例: 2025-06-06 12:44:00      我                   发送            不是昨晚就是44张吗，现在还是
-        # 逻辑：日期(组1) 时间(组2)  任意空格  姓名(组3)  任意空格  状态(组4)  任意空格  内容(组5)
         pattern = re.compile(r'^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\s+(\S+)\s+(\S+)\s+(.*)$')
-
-        messages_to_add = []
+        
+        batch_buffer = [] 
+        current_batch_metadata = {} 
+        
         from tqdm import tqdm
-        progress_bar = tqdm(total=len(lines) - 1)
+        progress_bar = tqdm(total=len(lines) - start_index)
+        
+        count = 0
 
         for line in lines[start_index:]:
             line = line.strip()
@@ -180,47 +183,58 @@ class SupportChatbot:
                 date_str, time_str, name, status, content = match.groups()
                 full_time = f"{date_str}T{time_str}"
                 
-                # 1. 转换角色语义
-                # 假设 "我" 是 User, "吴悠" 是对话的另一方 (可以视为 Assistant 或 Third Party)
-                # 为了让 Memory 更好理解，我们将非结构化文本转换为叙述句
-                
-                if name == "我":
-                    # 将“我”的行为描述为 User 的行为
-                    narrative = f"User (Me) sent a message: '{content}'"
-                    role = "user"
-                else:
-                    # 将“其他人”的行为描述为 Context
-                    narrative = f"Contact Person ({name}) sent a message: '{content}'"
-                    role = "assistant" # 或者 user，取决于你想怎么存，但在 mem0 中 add 纯文本更灵活
-
-                # 2. 构造 Memory Item
-                # 技巧：我们不使用 .add(messages=[...]) 的对话模式，而是使用 .add(text, metadata)
-                # 原因：导入的是历史事实，用叙述性文本更容易被提取成“记忆点”
-                
-                # 如果内容是表情，做个标记，防止 LLM 困惑
+                # 处理特殊内容
                 if content == "[动画表情]":
                     content = "[Sent an animated sticker]"
-                    narrative = f"{name} sent an animated sticker."
-
-                memory_text = f"Interaction on {date_str} at {time_str}: {name} ({status}) said: {content}"
                 
-                # 3. 添加到 mem0
-                self.memory.add(
-                    memory_text, 
-                    user_id=user_id, 
-                    metadata={
-                        "timestamp": full_time, 
-                        "source": "wechat_import", 
-                        "original_speaker": name,
+                # 构造单条文本，这里稍微改一下格式，让 LLM 更好理解这是一段连续对话
+                # 例如： "2025-06-06 12:44:00 - User: 你好"
+                role_label = "User (Me)" if name == "我" else f"Contact ({name})"
+                formatted_line = f"[{full_time}] {role_label}: {content}"
+                
+                # 如果缓冲区是空的，记录这一批次的开始时间作为元数据
+                if not batch_buffer:
+                    current_batch_metadata = {
+                        "timestamp": full_time,
+                        "source": "wechat_import",
                         "import_date": datetime.now().isoformat()
                     }
-                )
-                # print(f"Imported: {memory_text[:50]}...")
-                count += 1
-                progress_bar.update(1)
+
+                batch_buffer.append(formatted_line)
                 
+                # --- 触发批量写入条件 ---
+                if len(batch_buffer) >= batch_size:
+                    self._flush_buffer(batch_buffer, user_id, current_batch_metadata)
+                    count += 1 # 记录批次数量
+                    batch_buffer = [] # 清空
+                    current_batch_metadata = {}
+
+            progress_bar.update(1)
+
+        # 循环结束后，处理剩余未满一批的数据
+        if batch_buffer:
+            self._flush_buffer(batch_buffer, user_id, current_batch_metadata)
+            count += 1
+            
         progress_bar.close()
-        print(f"Successfully imported {count} memory items.")
+        print(f"Successfully imported {count} batches of history.")
+
+    def _flush_buffer(self, buffer: List[str], user_id: str, metadata: Dict):
+        """辅助函数：将缓冲区的内容合并并写入 Memory"""
+        if not buffer:
+            return
+            
+        # 将列表合并成一个大的文本块
+        # mem0 会自动分析这个文本块中的所有信息
+        combined_text = "\n".join(buffer)
+        
+        # 调用一次 add，处理多条对话
+        self.memory.add(
+            combined_text, 
+            user_id=user_id, 
+            metadata=metadata
+        )
+
 
 if __name__ == "__main__":
     chatbot = SupportChatbot()
