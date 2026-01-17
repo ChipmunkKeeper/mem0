@@ -1,3 +1,148 @@
+# import json
+# import os
+# import threading
+# import time
+# from concurrent.futures import ThreadPoolExecutor
+
+# from dotenv import load_dotenv
+# from tqdm import tqdm
+
+# from mem0 import MemoryClient
+
+# load_dotenv()
+
+
+# # Update custom instructions
+# custom_instructions = """
+# Generate personal memories that follow these guidelines:
+
+# 1. Each memory should be self-contained with complete context, including:
+#    - The person's name, do not use "user" while creating memories
+#    - Personal details (career aspirations, hobbies, life circumstances)
+#    - Emotional states and reactions
+#    - Ongoing journeys or future plans
+#    - Specific dates when events occurred
+
+# 2. Include meaningful personal narratives focusing on:
+#    - Identity and self-acceptance journeys
+#    - Family planning and parenting
+#    - Creative outlets and hobbies
+#    - Mental health and self-care activities
+#    - Career aspirations and education goals
+#    - Important life events and milestones
+
+# 3. Make each memory rich with specific details rather than general statements
+#    - Include timeframes (exact dates when possible)
+#    - Name specific activities (e.g., "charity race for mental health" rather than just "exercise")
+#    - Include emotional context and personal growth elements
+
+# 4. Extract memories only from user messages, not incorporating assistant responses
+
+# 5. Format each memory as a paragraph with a clear narrative structure that captures the person's experience, challenges, and aspirations
+# """
+
+
+# class MemoryADD:
+#     def __init__(self, data_path=None, batch_size=2, is_graph=False):
+#         self.mem0_client = MemoryClient(
+#             api_key=os.getenv("MEM0_API_KEY"),
+#             org_id=os.getenv("MEM0_ORGANIZATION_ID"),
+#             project_id=os.getenv("MEM0_PROJECT_ID"),
+#         )
+
+#         self.mem0_client.update_project(custom_instructions=custom_instructions)
+#         self.batch_size = batch_size
+#         self.data_path = data_path
+#         self.data = None
+#         self.is_graph = is_graph
+#         if data_path:
+#             self.load_data()
+
+#     def load_data(self):
+#         with open(self.data_path, "r") as f:
+#             self.data = json.load(f)
+#         return self.data
+
+#     def add_memory(self, user_id, message, metadata, retries=3):
+#         for attempt in range(retries):
+#             try:
+#                 _ = self.mem0_client.add(
+#                     message, user_id=user_id, version="v2", metadata=metadata, enable_graph=self.is_graph
+#                 )
+#                 return
+#             except Exception as e:
+#                 if attempt < retries - 1:
+#                     time.sleep(1)  # Wait before retrying
+#                     continue
+#                 else:
+#                     raise e
+
+#     def add_memories_for_speaker(self, speaker, messages, timestamp, desc):
+#         for i in tqdm(range(0, len(messages), self.batch_size), desc=desc):
+#             batch_messages = messages[i : i + self.batch_size]
+#             self.add_memory(speaker, batch_messages, metadata={"timestamp": timestamp})
+
+#     def process_conversation(self, item, idx):
+#         conversation = item["conversation"]
+#         speaker_a = conversation["speaker_a"]
+#         speaker_b = conversation["speaker_b"]
+
+#         speaker_a_user_id = f"{speaker_a}_{idx}"
+#         speaker_b_user_id = f"{speaker_b}_{idx}"
+
+#         # delete all memories for the two users
+#         self.mem0_client.delete_all(user_id=speaker_a_user_id)
+#         self.mem0_client.delete_all(user_id=speaker_b_user_id)
+
+#         for key in conversation.keys():
+#             if key in ["speaker_a", "speaker_b"] or "date" in key or "timestamp" in key:
+#                 continue
+
+#             date_time_key = key + "_date_time"
+#             timestamp = conversation[date_time_key]
+#             chats = conversation[key]
+
+#             messages = []
+#             messages_reverse = []
+#             for chat in chats:
+#                 if chat["speaker"] == speaker_a:
+#                     messages.append({"role": "user", "content": f"{speaker_a}: {chat['text']}"})
+#                     messages_reverse.append({"role": "assistant", "content": f"{speaker_a}: {chat['text']}"})
+#                 elif chat["speaker"] == speaker_b:
+#                     messages.append({"role": "assistant", "content": f"{speaker_b}: {chat['text']}"})
+#                     messages_reverse.append({"role": "user", "content": f"{speaker_b}: {chat['text']}"})
+#                 else:
+#                     raise ValueError(f"Unknown speaker: {chat['speaker']}")
+
+#             # add memories for the two users on different threads
+#             thread_a = threading.Thread(
+#                 target=self.add_memories_for_speaker,
+#                 args=(speaker_a_user_id, messages, timestamp, "Adding Memories for Speaker A"),
+#             )
+#             thread_b = threading.Thread(
+#                 target=self.add_memories_for_speaker,
+#                 args=(speaker_b_user_id, messages_reverse, timestamp, "Adding Memories for Speaker B"),
+#             )
+
+#             thread_a.start()
+#             thread_b.start()
+#             thread_a.join()
+#             thread_b.join()
+
+#         print("Messages added successfully")
+
+#     def process_all_conversations(self, max_workers=10):
+#         if not self.data:
+#             raise ValueError("No data loaded. Please set data_path and call load_data() first.")
+#         with ThreadPoolExecutor(max_workers=max_workers) as executor:
+#             futures = [executor.submit(self.process_conversation, item, idx) for idx, item in enumerate(self.data)]
+
+#             for future in futures:
+#                 future.result()
+
+"""
+采用本地LLM运行
+"""
 import json
 import os
 import threading
@@ -7,50 +152,63 @@ from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-from mem0 import MemoryClient
+from mem0 import Memory
 
 load_dotenv()
 
 
-# Update custom instructions
-custom_instructions = """
-Generate personal memories that follow these guidelines:
+BASE_URL = "http://localhost:8000/v1"
+MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
 
-1. Each memory should be self-contained with complete context, including:
-   - The person's name, do not use "user" while creating memories
-   - Personal details (career aspirations, hobbies, life circumstances)
-   - Emotional states and reactions
-   - Ongoing journeys or future plans
-   - Specific dates when events occurred
-
-2. Include meaningful personal narratives focusing on:
-   - Identity and self-acceptance journeys
-   - Family planning and parenting
-   - Creative outlets and hobbies
-   - Mental health and self-care activities
-   - Career aspirations and education goals
-   - Important life events and milestones
-
-3. Make each memory rich with specific details rather than general statements
-   - Include timeframes (exact dates when possible)
-   - Name specific activities (e.g., "charity race for mental health" rather than just "exercise")
-   - Include emotional context and personal growth elements
-
-4. Extract memories only from user messages, not incorporating assistant responses
-
-5. Format each memory as a paragraph with a clear narrative structure that captures the person's experience, challenges, and aspirations
-"""
-
+# 路径设置
+ROOT_MEMORY_PATH = "/home/jwuev/code/mem0/evaluation/local_memory"
+VECTOR_DB_PATH = "vector_db"
+HISTORY_DB_PATH = os.path.join(ROOT_MEMORY_PATH, "history.db")
+# =================================================================
 
 class MemoryADD:
     def __init__(self, data_path=None, batch_size=2, is_graph=False):
-        self.mem0_client = MemoryClient(
-            api_key=os.getenv("MEM0_API_KEY"),
-            org_id=os.getenv("MEM0_ORGANIZATION_ID"),
-            project_id=os.getenv("MEM0_PROJECT_ID"),
-        )
+        self.config = {
+            "llm": {
+                "provider": "openai",
+                "config": {
+                    "model": MODEL_NAME,
+                    "openai_base_url": BASE_URL,
+                    "api_key": "EMPTY",  
+                    "temperature": 0.1,
+                    "max_tokens": 2000,
+                },
+            },
+            "embedder": {
+                "provider": "huggingface",
+                "config": {
+                    "model": "/home/jwuev/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181",
+                    "model_kwargs": {"device": "cuda"} 
+                },
+            },
+            "vector_store": {
+                "provider": "qdrant",
+                "config": {
+                    "collection_name": "test_dataset_memory",
+                    "path": os.path.join(ROOT_MEMORY_PATH, VECTOR_DB_PATH),
+                    "embedding_model_dims": 1024,
+                },
+            },
+            "history_db_path": HISTORY_DB_PATH,
+            "version": "v1.1"
+        }
+        
+        if is_graph:
+            self.config["graph_store"] = {
+                "provider": "neo4j",
+                "config": {
+                    "url": "neo4j://localhost:7687",
+                    "username": "neo4j",
+                    "password": "password"
+                }
+            }
 
-        self.mem0_client.update_project(custom_instructions=custom_instructions)
+        self.memory = Memory.from_config(self.config)
         self.batch_size = batch_size
         self.data_path = data_path
         self.data = None
@@ -59,23 +217,27 @@ class MemoryADD:
             self.load_data()
 
     def load_data(self):
-        with open(self.data_path, "r") as f:
+        with open(self.data_path, "r", encoding='utf-8') as f: # 建议加上 encoding
             self.data = json.load(f)
         return self.data
 
     def add_memory(self, user_id, message, metadata, retries=3):
         for attempt in range(retries):
             try:
-                _ = self.mem0_client.add(
-                    message, user_id=user_id, version="v2", metadata=metadata, enable_graph=self.is_graph
+                self.memory.add(
+                    message, 
+                    user_id=user_id, 
+                    metadata=metadata
                 )
                 return
             except Exception as e:
+                print(f"Error adding memory for {user_id}: {e}")
                 if attempt < retries - 1:
-                    time.sleep(1)  # Wait before retrying
+                    time.sleep(1) 
                     continue
                 else:
-                    raise e
+                    print(f"Failed to add memory after retries for {user_id}")
+                    # raise e 
 
     def add_memories_for_speaker(self, speaker, messages, timestamp, desc):
         for i in tqdm(range(0, len(messages), self.batch_size), desc=desc):
@@ -90,16 +252,15 @@ class MemoryADD:
         speaker_a_user_id = f"{speaker_a}_{idx}"
         speaker_b_user_id = f"{speaker_b}_{idx}"
 
-        # delete all memories for the two users
-        self.mem0_client.delete_all(user_id=speaker_a_user_id)
-        self.mem0_client.delete_all(user_id=speaker_b_user_id)
+        self.memory.delete_all(user_id=speaker_a_user_id)
+        self.memory.delete_all(user_id=speaker_b_user_id)
 
         for key in conversation.keys():
             if key in ["speaker_a", "speaker_b"] or "date" in key or "timestamp" in key:
                 continue
 
             date_time_key = key + "_date_time"
-            timestamp = conversation[date_time_key]
+            timestamp = conversation.get(date_time_key, "unknown_time") 
             chats = conversation[key]
 
             messages = []
@@ -112,30 +273,30 @@ class MemoryADD:
                     messages.append({"role": "assistant", "content": f"{speaker_b}: {chat['text']}"})
                     messages_reverse.append({"role": "user", "content": f"{speaker_b}: {chat['text']}"})
                 else:
-                    raise ValueError(f"Unknown speaker: {chat['speaker']}")
-
-            # add memories for the two users on different threads
-            thread_a = threading.Thread(
-                target=self.add_memories_for_speaker,
-                args=(speaker_a_user_id, messages, timestamp, "Adding Memories for Speaker A"),
+                    print(f"Warning: Unknown speaker {chat['speaker']}")
+                    continue
+            
+            self.add_memories_for_speaker(
+                speaker_a_user_id, 
+                messages, 
+                timestamp, 
+                f"Adding A ({idx})"
             )
-            thread_b = threading.Thread(
-                target=self.add_memories_for_speaker,
-                args=(speaker_b_user_id, messages_reverse, timestamp, "Adding Memories for Speaker B"),
+            self.add_memories_for_speaker(
+                speaker_b_user_id, 
+                messages_reverse, 
+                timestamp, 
+                f"Adding B ({idx})"
             )
 
-            thread_a.start()
-            thread_b.start()
-            thread_a.join()
-            thread_b.join()
+        print(f"Conversation {idx} processed successfully")
 
-        print("Messages added successfully")
-
-    def process_all_conversations(self, max_workers=10):
+    def process_all_conversations(self):
         if not self.data:
             raise ValueError("No data loaded. Please set data_path and call load_data() first.")
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(self.process_conversation, item, idx) for idx, item in enumerate(self.data)]
-
-            for future in futures:
-                future.result()
+        
+        for idx, item in enumerate(self.data):
+            try:
+                self.process_conversation(item, idx)
+            except Exception as e:
+                print(f"Error processing conversation {idx}: {e}")

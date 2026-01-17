@@ -10,6 +10,11 @@ __pycache__/
 # memory
 local_memory/
 
+# eval
+evaluation/dataset/
+evaluation/local_memory/
+evaluation/results/
+
 # Distribution / packaging
 .Python
 build/

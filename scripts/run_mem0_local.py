@@ -9,7 +9,7 @@ from openai import OpenAI
 用vllm形成本地服务器，再通过openai api接口调用
 
 开始服务：
-CUDA_VISIBLE_DEVICES=1 python -m vllm.entrypoints.openai.api_server \
+CUDA_VISIBLE_DEVICES=8 python -m vllm.entrypoints.openai.api_server \
     --model Qwen/Qwen2.5-7B-Instruct \
     --port 8000 \
     --gpu-memory-utilization 0.9
