@@ -474,7 +474,8 @@ class Memory(MemoryBase):
             existing_memories = self.vector_store.search(
                 query=new_mem,
                 vectors=messages_embeddings,
-                limit=5,
+                # limit=5,
+                limit=30,
                 filters=search_filters,
             )
             for mem in existing_memories:

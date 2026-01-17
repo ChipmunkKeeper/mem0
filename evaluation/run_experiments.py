@@ -46,27 +46,27 @@ def main():
                 f"mem0_results_top_{args.top_k}_filter_{args.filter_memories}_graph_{args.is_graph}.json",
             )
             memory_searcher = MemorySearch(output_file_path, args.top_k, args.filter_memories, args.is_graph)
-            memory_searcher.process_data_file("dataset/locomo10.json")
+            memory_searcher.process_data_file("dataset/locomo1.json")
     elif args.technique_type == "rag":
         output_file_path = os.path.join(args.output_folder, f"rag_results_{args.chunk_size}_k{args.num_chunks}.json")
         rag_manager = RAGManager(data_path="dataset/locomo10_rag.json", chunk_size=args.chunk_size, k=args.num_chunks)
         rag_manager.process_all_conversations(output_file_path)
     elif args.technique_type == "langmem":
         output_file_path = os.path.join(args.output_folder, "langmem_results.json")
-        langmem_manager = LangMemManager(dataset_path="dataset/locomo10_rag.json")
+        langmem_manager = LangMemManager(dataset_path="dataset/locomo1_rag.json")
         langmem_manager.process_all_conversations(output_file_path)
     elif args.technique_type == "zep":
         if args.method == "add":
-            zep_manager = ZepAdd(data_path="dataset/locomo10.json")
+            zep_manager = ZepAdd(data_path="dataset/locomo1.json")
             zep_manager.process_all_conversations("1")
         elif args.method == "search":
             output_file_path = os.path.join(args.output_folder, "zep_search_results.json")
             zep_manager = ZepSearch()
-            zep_manager.process_data_file("dataset/locomo10.json", "1", output_file_path)
+            zep_manager.process_data_file("dataset/locomo1.json", "1", output_file_path)
     elif args.technique_type == "openai":
         output_file_path = os.path.join(args.output_folder, "openai_results.json")
         openai_manager = OpenAIPredict()
-        openai_manager.process_data_file("dataset/locomo10.json", output_file_path)
+        openai_manager.process_data_file("dataset/locomo1.json", output_file_path)
     else:
         raise ValueError(f"Invalid technique type: {args.technique_type}")
 

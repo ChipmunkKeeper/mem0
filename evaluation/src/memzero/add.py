@@ -156,6 +156,9 @@ from mem0 import Memory
 
 load_dotenv()
 
+# os.environ["API_KEY"] = "sk-eee609e2be48437ca8f7cfe4e61c59b0"
+# BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+# MODEL_NAME = "deepseek-v3.2"
 
 BASE_URL = "http://localhost:8000/v1"
 MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
@@ -164,7 +167,8 @@ MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
 ROOT_MEMORY_PATH = "/home/jwuev/code/mem0/evaluation/local_memory"
 VECTOR_DB_PATH = "vector_db"
 HISTORY_DB_PATH = os.path.join(ROOT_MEMORY_PATH, "history.db")
-# =================================================================
+MEMORY_COLLECTION_PATH = os.path.join(ROOT_MEMORY_PATH, "test_dataset_memory")
+
 
 class MemoryADD:
     def __init__(self, data_path=None, batch_size=2, is_graph=False):
@@ -174,7 +178,7 @@ class MemoryADD:
                 "config": {
                     "model": MODEL_NAME,
                     "openai_base_url": BASE_URL,
-                    "api_key": "EMPTY",  
+                    "api_key": os.environ["API_KEY"],  
                     "temperature": 0.1,
                     "max_tokens": 2000,
                 },
@@ -189,8 +193,8 @@ class MemoryADD:
             "vector_store": {
                 "provider": "qdrant",
                 "config": {
-                    "collection_name": "test_dataset_memory",
-                    "path": os.path.join(ROOT_MEMORY_PATH, VECTOR_DB_PATH),
+                    "collection_name": MEMORY_COLLECTION_PATH,
+                    "path": VECTOR_DB_PATH,
                     "embedding_model_dims": 1024,
                 },
             },

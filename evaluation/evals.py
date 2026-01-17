@@ -25,7 +25,7 @@ def process_item(item_data):
 
         metrics = calculate_metrics(pred_answer, gt_answer)
         bleu_scores = calculate_bleu_scores(pred_answer, gt_answer)
-        llm_score = evaluate_llm_judge(question, gt_answer, pred_answer)
+        # llm_score = evaluate_llm_judge(question, gt_answer, pred_answer)
 
         local_results[k].append(
             {
@@ -35,7 +35,7 @@ def process_item(item_data):
                 "category": category,
                 "bleu_score": bleu_scores["bleu1"],
                 "f1_score": metrics["f1"],
-                "llm_score": llm_score,
+                # "llm_score": llm_score,
             }
         )
 

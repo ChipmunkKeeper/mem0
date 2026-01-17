@@ -18,7 +18,8 @@ df = pd.DataFrame(all_items)
 df["category"] = pd.to_numeric(df["category"])
 
 # Calculate mean scores by category
-result = df.groupby("category").agg({"bleu_score": "mean", "f1_score": "mean", "llm_score": "mean"}).round(4)
+# result = df.groupby("category").agg({"bleu_score": "mean", "f1_score": "mean", "llm_score": "mean"}).round(4)
+result = df.groupby("category").agg({"bleu_score": "mean", "f1_score": "mean", }).round(3)
 
 # Add count of questions per category
 result["count"] = df.groupby("category").size()
@@ -28,7 +29,8 @@ print("Mean Scores Per Category:")
 print(result)
 
 # Calculate overall means
-overall_means = df.agg({"bleu_score": "mean", "f1_score": "mean", "llm_score": "mean"}).round(4)
+# overall_means = df.agg({"bleu_score": "mean", "f1_score": "mean", "llm_score": "mean"}).round(4)
+overall_means = df.agg({"bleu_score": "mean", "f1_score": "mean", }).round(3)
 
 print("\nOverall Mean Scores:")
 print(overall_means)
